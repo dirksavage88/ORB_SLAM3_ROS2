@@ -5,7 +5,9 @@
 #include "sensor_msgs/msg/image.hpp"
 
 #include <cv_bridge/cv_bridge.h>
-
+#include <string>
+#include <image_transport/image_transport.hpp>
+#include <sensor_msgs/image_encodings.hpp>
 #include "System.h"
 #include "Frame.h"
 #include "Map.h"
@@ -17,19 +19,22 @@ class MonocularSlamNode : public rclcpp::Node
 {
 public:
     MonocularSlamNode(ORB_SLAM3::System* pSLAM);
-
+    
     ~MonocularSlamNode();
 
 private:
-    using ImageMsg = sensor_msgs::msg::Image;
+    
+    std::string image_topic;
+    //std::string orb_vocabulary;
+    //std::string settings_file;
 
-    void GrabImage(const sensor_msgs::msg::Image::SharedPtr msg);
+    void GrabImage(sensor_msgs::msg::Image::ConstSharedPtr msg);
 
     ORB_SLAM3::System* m_SLAM;
 
-    cv_bridge::CvImagePtr m_cvImPtr;
+    cv_bridge::CvImageConstPtr m_cvImPtr;
 
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_subscriber;
+    image_transport::CameraSubscriber m_image_subscriber;
 };
 
 #endif
