@@ -11,7 +11,7 @@ StereoSlamNode::StereoSlamNode(ORB_SLAM3::System* pSLAM, const string &strSettin
 {
     stringstream ss(strDoRectify);
     ss >> boolalpha >> doRectify;
-    _odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
+    _odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("/visual_slam/tracking/odometry", 10);
 
     if (doRectify){
 
@@ -136,6 +136,7 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
             odom_msg.pose.pose.orientation.x = q.x();
             odom_msg.pose.pose.orientation.y = q.y();
             odom_msg.pose.pose.orientation.z = q.z();
+            odom_msg.pose.pose.orientation.w = q.w();
 
             _odom_pub->publish(odom_msg);
         }
