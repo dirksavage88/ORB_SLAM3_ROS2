@@ -11,6 +11,7 @@ StereoSlamNode::StereoSlamNode(ORB_SLAM3::System* pSLAM, const string &strSettin
 {
     stringstream ss(strDoRectify);
     ss >> boolalpha >> doRectify;
+    _odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("odom", 10);
 
     if (doRectify){
 
@@ -92,10 +93,52 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
         cv::Mat imLeft, imRight;
         cv::remap(cv_ptrLeft->image,imLeft,M1l,M2l,cv::INTER_LINEAR);
         cv::remap(cv_ptrRight->image,imRight,M1r,M2r,cv::INTER_LINEAR);
-        m_SLAM->TrackStereo(imLeft, imRight, Utility::StampToSec(msgLeft->header.stamp));
+        Sophus::SE3f Tcw = m_SLAM->TrackStereo(imLeft, imRight, Utility::StampToSec(msgLeft->header.stamp));
+        if(!Tcw.translation().isZero()) {
+            Sophus::SE3f t_wold_to_cam = Tcw.invers();
+
+            nav_msgs::msg::Odometry odom_msg;
+
+            odom_msg.header.stamp = this->now();
+            odom_msg.header.frame_id = "map";
+            odom_msg.child_Frame_id = "base_link";
+            
+            odom_msg.pose.pose.position.x = t_world_to_cam.translation().x();
+            odom_msg.pose.pose.position.y = t_world_to_cam.translation().y();
+            odom_msg.pose.pose.position.z = t_world_to_cam.translation().z();
+
+            Eigen::Quaternionf q(t_world_to_cam.unit_quaternion());
+            odom_msg.pose.pose.orientation.x = q.x();
+            odom_msg.pose.pose.orientation.y = q.y();
+            odom_msg.pose.pose.orientation.z = q.z();
+            odom_msg.pose.pose.orientation.w = q.w();
+
+            _odom_pub->publish(odom_msg);
+        }
     }
     else
     {
-        m_SLAM->TrackStereo(cv_ptrLeft->image, cv_ptrRight->image, Utility::StampToSec(msgLeft->header.stamp));
+        Sophus::SE3f Tcw = m_SLAM->TrackStereo(cv_ptrLeft->image, cv_ptrRight->image, Utility::StampToSec(msgLeft->header.stamp));
+        if(!Tcw.translation().isZero()) {
+            Sophus::SE3f t_wold_to_cam = Tcw.invers();
+
+            nav_msgs::msg::Odometry odom_msg;
+
+            odom_msg.header.stamp = this->now();
+            odom_msg.header.frame_id = "map";
+            odom_msg.child_Frame_id = "base_link";
+            
+            odom_msg.pose.pose.position.x = t_world_to_cam.translation().x();
+            odom_msg.pose.pose.position.y = t_world_to_cam.translation().y();
+            odom_msg.pose.pose.position.z = t_world_to_cam.translation().z();
+
+            Eigen::Quaternionf q(t_world_to_cam.unit_quaternion());
+            odom_msg.pose.pose.orientation.x = q.x();
+            odom_msg.pose.pose.orientation.y = q.y();
+            odom_msg.pose.pose.orientation.z = q.z();
+
+            _odom_pub->publish(odom_msg);
+        }
+
     }
 }
