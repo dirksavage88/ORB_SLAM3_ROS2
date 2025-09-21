@@ -95,13 +95,13 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
         cv::remap(cv_ptrRight->image,imRight,M1r,M2r,cv::INTER_LINEAR);
         Sophus::SE3f Tcw = m_SLAM->TrackStereo(imLeft, imRight, Utility::StampToSec(msgLeft->header.stamp));
         if(!Tcw.translation().isZero()) {
-            Sophus::SE3f t_wold_to_cam = Tcw.invers();
+            Sophus::SE3f t_world_to_cam = Tcw.inverse();
 
             nav_msgs::msg::Odometry odom_msg;
 
             odom_msg.header.stamp = this->now();
             odom_msg.header.frame_id = "map";
-            odom_msg.child_Frame_id = "base_link";
+            odom_msg.child_frame_id = "base_link";
             
             odom_msg.pose.pose.position.x = t_world_to_cam.translation().x();
             odom_msg.pose.pose.position.y = t_world_to_cam.translation().y();
@@ -120,13 +120,13 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
     {
         Sophus::SE3f Tcw = m_SLAM->TrackStereo(cv_ptrLeft->image, cv_ptrRight->image, Utility::StampToSec(msgLeft->header.stamp));
         if(!Tcw.translation().isZero()) {
-            Sophus::SE3f t_wold_to_cam = Tcw.invers();
+            Sophus::SE3f t_world_to_cam = Tcw.inverse();
 
             nav_msgs::msg::Odometry odom_msg;
 
             odom_msg.header.stamp = this->now();
             odom_msg.header.frame_id = "map";
-            odom_msg.child_Frame_id = "base_link";
+            odom_msg.child_frame_id = "base_link";
             
             odom_msg.pose.pose.position.x = t_world_to_cam.translation().x();
             odom_msg.pose.pose.position.y = t_world_to_cam.translation().y();
