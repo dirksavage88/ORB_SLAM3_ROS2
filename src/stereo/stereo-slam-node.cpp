@@ -98,9 +98,9 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
             Sophus::SE3f t_world_to_cam = Tcw.inverse();
             // Angles for rotation matrix (from optical frame to FLU)
             double ax, ay, az;
-            ax = M_PI / 2;
-            ay = 0;
-            az = M_PI / 2;
+            ax = 3 * M_PI / 2;
+            ay = M_PI / 2;
+            az = 0;
 
             Eigen::Quaternionf q_f = Eigen::AngleAxisf(ax, Eigen::Vector3f::UnitX()) * Eigen::AngleAxisf(ay, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(az, Eigen::Vector3f::UnitZ());
             Eigen::Matrix3f rot_max = q_f.toRotationMatrix();
@@ -133,10 +133,10 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
             Sophus::SE3f t_world_to_cam = Tcw.inverse();
             // Angles for rotation matrix (from optical frame to FLU)
             double ax, ay, az;
-            ax = M_PI / 2;
-            ay = 0;
-            az = M_PI / 2;
-
+            ax = 3 * M_PI / 2;
+            ay = M_PI / 2;
+            az = 0;
+            
             Eigen::Quaternionf q_f = Eigen::AngleAxisf(ax, Eigen::Vector3f::UnitX()) * Eigen::AngleAxisf(ay, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(az, Eigen::Vector3f::UnitZ());
             Eigen::Matrix3f rot_max = q_f.toRotationMatrix();
             nav_msgs::msg::Odometry odom_msg;
