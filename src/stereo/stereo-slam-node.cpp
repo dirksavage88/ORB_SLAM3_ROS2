@@ -100,7 +100,7 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
             double ax, ay, az;
             ax = 3 * M_PI / 2;
             ay = M_PI / 2;
-            az = 0;
+            az = M_PI;
 
             Eigen::Quaternionf q_f = Eigen::AngleAxisf(ax, Eigen::Vector3f::UnitX()) * Eigen::AngleAxisf(ay, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(az, Eigen::Vector3f::UnitZ());
             Eigen::Matrix3f rot_max = q_f.toRotationMatrix();
@@ -135,7 +135,7 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
             double ax, ay, az;
             ax = 3 * M_PI / 2;
             ay = M_PI / 2;
-            az = 0;
+            az = M_PI;
             
             Eigen::Quaternionf q_f = Eigen::AngleAxisf(ax, Eigen::Vector3f::UnitX()) * Eigen::AngleAxisf(ay, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(az, Eigen::Vector3f::UnitZ());
             Eigen::Matrix3f rot_max = q_f.toRotationMatrix();
