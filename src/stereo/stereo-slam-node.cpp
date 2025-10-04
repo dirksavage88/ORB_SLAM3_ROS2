@@ -95,33 +95,31 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
         cv::remap(cv_ptrRight->image,imRight,M1r,M2r,cv::INTER_LINEAR);
         Sophus::SE3f Tcw = m_SLAM->TrackStereo(imLeft, imRight, Utility::StampToSec(msgLeft->header.stamp));
         if(!Tcw.translation().isZero()) {
-            Sophus::SE3f t_world_to_cam = Tcw.inverse();
             // Angles for rotation matrix (from optical frame to FLU)
-            double ax, ay, az;
-            ax = M_PI / 2;
-            ay = M_PI / 2;
-            az = 0;
-
-            Eigen::Quaternionf q_f = Eigen::AngleAxisf(ax, Eigen::Vector3f::UnitX()) * Eigen::AngleAxisf(ay, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(az, Eigen::Vector3f::UnitZ());
-            Eigen::Matrix3f rot_max = q_f.toRotationMatrix();
+            Eigen::Matrix3f R;
+            R  <<
+                   0,  0,  1,
+                  -1,  0,  0,
+                   0, -1,  0;
+            Eigen::Quaternionf q_opt_flu(R);
+            Eigen::Vector3f t_flu = R * Tcw.translation();
             nav_msgs::msg::Odometry odom_msg;
 
             odom_msg.header.stamp = this->now();
             odom_msg.header.frame_id = "map";
             odom_msg.child_frame_id = "base_link";
-           
-            // Position vector converted to FLU from optical frame
-            odom_msg.pose.pose.position.x = t_world_to_cam.translation().z();
-            odom_msg.pose.pose.position.y = -t_world_to_cam.translation().x();
-            odom_msg.pose.pose.position.z = -t_world_to_cam.translation().y();
 
-            Eigen::Quaternionf q(t_world_to_cam.unit_quaternion());
-            Eigen::Quaternionf q_rot(rot_max);
-            q = q * q_rot;
-            odom_msg.pose.pose.orientation.x = q.x();
-            odom_msg.pose.pose.orientation.y = q.y();
-            odom_msg.pose.pose.orientation.z = q.z();
-            odom_msg.pose.pose.orientation.w = q.w();
+            // Position vector converted to FLU from optical frame
+            odom_msg.pose.pose.position.x = t_flu.x();
+            odom_msg.pose.pose.position.y = t_flu.y();
+            odom_msg.pose.pose.position.z = t_flu.z();
+
+            Eigen::Quaternionf q_cam(Tcw.unit_quaternion());
+            Eigen::Quaternionf q_world_flu = q_cam * q_opt_flu;
+            odom_msg.pose.pose.orientation.x = q_world_flu.x();
+            odom_msg.pose.pose.orientation.y = q_world_flu.y();
+            odom_msg.pose.pose.orientation.z = q_world_flu.z();
+            odom_msg.pose.pose.orientation.w = q_world_flu.w();
 
             _odom_pub->publish(odom_msg);
         }
@@ -130,36 +128,35 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
     {
         Sophus::SE3f Tcw = m_SLAM->TrackStereo(cv_ptrLeft->image, cv_ptrRight->image, Utility::StampToSec(msgLeft->header.stamp));
         if(!Tcw.translation().isZero()) {
-            Sophus::SE3f t_world_to_cam = Tcw.inverse();
             // Angles for rotation matrix (from optical frame to FLU)
-            double ax, ay, az;
-            ax = M_PI / 2;
-            ay = M_PI / 2;
-            az = 0;
-            
-            Eigen::Quaternionf q_f = Eigen::AngleAxisf(ax, Eigen::Vector3f::UnitX()) * Eigen::AngleAxisf(ay, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(az, Eigen::Vector3f::UnitZ());
-            Eigen::Matrix3f rot_max = q_f.toRotationMatrix();
+            Eigen::Matrix3f R;
+            R  <<
+                   0,  0,  1,
+                  -1,  0,  0,
+                   0, -1,  0;
+            Eigen::Quaternionf q_opt_flu(R);
+            Eigen::Vector3f t_flu = R * Tcw.translation();
             nav_msgs::msg::Odometry odom_msg;
 
             odom_msg.header.stamp = this->now();
             odom_msg.header.frame_id = "map";
             odom_msg.child_frame_id = "base_link";
-           
-            // Position vector converted to FLU from optical frame
-            odom_msg.pose.pose.position.x = t_world_to_cam.translation().z();
-            odom_msg.pose.pose.position.y = -t_world_to_cam.translation().x();
-            odom_msg.pose.pose.position.z = -t_world_to_cam.translation().y();
 
-            Eigen::Quaternionf q(t_world_to_cam.unit_quaternion());
-            Eigen::Quaternionf q_rot(rot_max);
-            q = q * q_rot;
-            odom_msg.pose.pose.orientation.x = q.x();
-            odom_msg.pose.pose.orientation.y = q.y();
-            odom_msg.pose.pose.orientation.z = q.z();
-            odom_msg.pose.pose.orientation.w = q.w();
+            // Position vector converted to FLU from optical frame
+            odom_msg.pose.pose.position.x = t_flu.x();
+            odom_msg.pose.pose.position.y = t_flu.y();
+            odom_msg.pose.pose.position.z = t_flu.z();
+
+            Eigen::Quaternionf q_cam(Tcw.unit_quaternion());
+            Eigen::Quaternionf q_world_flu = q_cam * q_opt_flu;
+            odom_msg.pose.pose.orientation.x = q_world_flu.x();
+            odom_msg.pose.pose.orientation.y = q_world_flu.y();
+            odom_msg.pose.pose.orientation.z = q_world_flu.z();
+            odom_msg.pose.pose.orientation.w = q_world_flu.w();
 
             _odom_pub->publish(odom_msg);
-        }
+
+	}
 
     }
 }
