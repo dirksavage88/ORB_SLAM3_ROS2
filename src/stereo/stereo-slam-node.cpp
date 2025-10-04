@@ -1,5 +1,5 @@
 #include "stereo-slam-node.hpp"
-
+#include <eigen3/Eigen/Dense>
 #include<opencv2/core/core.hpp>
 
 using std::placeholders::_1;
@@ -96,18 +96,28 @@ void StereoSlamNode::GrabStereo(const ImageMsg::SharedPtr msgLeft, const ImageMs
         Sophus::SE3f Tcw = m_SLAM->TrackStereo(imLeft, imRight, Utility::StampToSec(msgLeft->header.stamp));
         if(!Tcw.translation().isZero()) {
             Sophus::SE3f t_world_to_cam = Tcw.inverse();
+            // Angles for rotation matrix (from optical frame to FLU)
+            double ax, ay, az;
+            ax = M_PI / 2;
+            ay = 0;
+            az = M_PI / 2;
 
+            Eigen::Quaternionf q_f = Eigen::AngleAxisf(ax, Eigen::Vector3f::UnitX()) * Eigen::AngleAxisf(ay, Eigen::Vector3f::UnitY()) * Eigen::AngleAxisf(az, Eigen::Vector3f::UnitZ());
+            Eigen::Matrix3f rot_max = q_f.toRotationMatrix();
             nav_msgs::msg::Odometry odom_msg;
 
             odom_msg.header.stamp = this->now();
             odom_msg.header.frame_id = "map";
             odom_msg.child_frame_id = "base_link";
-            
-            odom_msg.pose.pose.position.x = t_world_to_cam.translation().x();
-            odom_msg.pose.pose.position.y = t_world_to_cam.translation().y();
-            odom_msg.pose.pose.position.z = t_world_to_cam.translation().z();
+           
+            // Position vector converted to FLU from optical frame
+            odom_msg.pose.pose.position.x = t_world_to_cam.translation().z();
+            odom_msg.pose.pose.position.y = -t_world_to_cam.translation().x();
+            odom_msg.pose.pose.position.z = -t_world_to_cam.translation().y();
 
             Eigen::Quaternionf q(t_world_to_cam.unit_quaternion());
+            Eigen::Quaternionf q_rot(rot_max);
+            q = q * q_rot;
             odom_msg.pose.pose.orientation.x = q.x();
             odom_msg.pose.pose.orientation.y = q.y();
             odom_msg.pose.pose.orientation.z = q.z();
