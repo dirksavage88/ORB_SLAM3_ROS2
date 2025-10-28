@@ -1,7 +1,6 @@
 #include "monocular-slam-node.hpp"
 
 #include<opencv2/core/core.hpp>
-#include <string>
 
 using std::placeholders::_1;
 
