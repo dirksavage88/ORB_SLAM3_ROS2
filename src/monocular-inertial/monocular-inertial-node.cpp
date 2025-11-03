@@ -23,7 +23,7 @@ MonocularInertialNode::MonocularInertialNode(ORB_SLAM3::System* pSLAM)
     m_image_subscriber = image_transport::create_camera_subscription(
 	this,
         image_topic.c_str(),
-        std::bind(&MonocularInertialNode::GrabImage, this, std::placeholders::_1), "raw", qos_custom_profile);
+        std::bind(&MonocularInertialNode::GrabImage, this, _1), "raw", qos_custom_profile);
     std::cout << "slam changed" << std::endl;
 
     subImu_ = this->create_subscription<ImuMsg>(
@@ -61,7 +61,7 @@ void MonocularInertialNode::GrabImu(const ImuMsg::SharedPtr msg)
     }
 }
 
-void MonocularSlamNode::GrabImage(sensor_msgs::msg::Image::ConstSharedPtr msg)
+void MonocularInertialNode::GrabImage(const sensor_msgs::msg::Image::SharedPtr msg)
 {
     bufMutexImg_.lock();
 

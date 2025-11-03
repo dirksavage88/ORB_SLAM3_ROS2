@@ -26,7 +26,7 @@ public:
 
 private:
     void GrabImu(const ImuMsg::SharedPtr msg);
-    void GrabImage(const sensor_msgs::msg::Image::ConstSharedPtr msg);
+    void GrabImage(const sensor_msgs::msg::Image::SharedPtr msg);
     cv::Mat GetImage(const ImageMsg::SharedPtr msg);
     void SyncWithImu();
 
@@ -39,7 +39,6 @@ private:
     image_transport::CameraSubscriber m_image_subscriber;
 
     rclcpp::Subscription<ImuMsg>::SharedPtr   subImu_;
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_subscriber;
 
     queue<ImuMsg::SharedPtr> imuBuf_;
     queue<ImageMsg::SharedPtr> imgBuf_;
