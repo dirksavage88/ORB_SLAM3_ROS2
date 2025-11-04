@@ -8,26 +8,11 @@ MonocularInertialNode::MonocularInertialNode(ORB_SLAM3::System* pSLAM)
 :   Node("ORB_SLAM3_ROS2")
 {
     m_SLAM = pSLAM;
-
-    // Input image topic. Define orb vocab and settings (yaml) path
-    this->declare_parameter("image", "/image");
-    
-    //TODO
-    //this->declare_parameter("orb_vocabulary", "");
-    //this->declare_parameter("settings", "");
-
-    // QoS 
-    rmw_qos_profile_t qos_custom_profile = rmw_qos_profile_system_default;
-    image_topic = this->get_parameter("image").as_string();
-    
-    m_image_subscriber = image_transport::create_camera_subscription(
-	this,
-        image_topic.c_str(),
-        std::bind(&MonocularInertialNode::GrabImage, this, _1), "raw", qos_custom_profile);
-    std::cout << "slam changed" << std::endl;
+    m_image_subscriber = this->create_subscription<ImageMsg>(
+        "camera", 10, std::bind(&MonocularInertialNode::GrabImage, this, _1));
 
     subImu_ = this->create_subscription<ImuMsg>(
-        "imu/data_raw", 1000, std::bind(&MonocularInertialNode::GrabImu, this, _1));
+        "imu", 1000, std::bind(&MonocularInertialNode::GrabImu, this, _1));
 
     syncThread_ = new std::thread(&MonocularInertialNode::SyncWithImu, this);
 
@@ -61,7 +46,7 @@ void MonocularInertialNode::GrabImu(const ImuMsg::SharedPtr msg)
     }
 }
 
-void MonocularInertialNode::GrabImage(const sensor_msgs::msg::Image::SharedPtr msg)
+void MonocularInertialNode::GrabImage(const ImageMsg::SharedPtr msg)
 {
     bufMutexImg_.lock();
 
@@ -75,24 +60,25 @@ void MonocularInertialNode::GrabImage(const sensor_msgs::msg::Image::SharedPtr m
 cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
 {
     // Copy the ros image message to cv::Mat.
+    cv_bridge::CvImageConstPtr cv_ptr;
 
     try
     {
-        m_cvImPtr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8);
+        cv_ptr = cv_bridge::toCvShare(msg, sensor_msgs::image_encodings::MONO8);
     }
     catch (cv_bridge::Exception &e)
     {
         RCLCPP_ERROR(this->get_logger(), "cv_bridge exception: %s", e.what());
     }
 
-    if (m_cvImPtr->image.type() == 0)
+    if (cv_ptr->image.type() == 0)
     {
-        return m_cvImPtr->image.clone();
+        return cv_ptr->image.clone();
     }
     else
     {
         std::cerr << "Error image type" << std::endl;
-        return m_cvImPtr->image.clone();
+        return cv_ptr->image.clone();
     }
 }
 

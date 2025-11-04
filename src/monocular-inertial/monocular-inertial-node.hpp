@@ -6,8 +6,7 @@
 #include "sensor_msgs/msg/imu.hpp"
 
 #include <cv_bridge/cv_bridge.h>
-#include <image_transport/image_transport.hpp>
-#include <sensor_msgs/image_encodings.hpp>
+
 #include "System.h"
 #include "Frame.h"
 #include "Map.h"
@@ -30,15 +29,11 @@ private:
     cv::Mat GetImage(const ImageMsg::SharedPtr msg);
     void SyncWithImu();
 
-    std::string image_topic;
-
     ORB_SLAM3::System* m_SLAM;
     std::thread *syncThread_;
 
-    cv_bridge::CvImageConstPtr m_cvImPtr;
-    image_transport::CameraSubscriber m_image_subscriber;
-
     rclcpp::Subscription<ImuMsg>::SharedPtr   subImu_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_subscriber;
 
     queue<ImuMsg::SharedPtr> imuBuf_;
     queue<ImageMsg::SharedPtr> imgBuf_;
