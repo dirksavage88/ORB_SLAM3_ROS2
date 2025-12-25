@@ -1,4 +1,5 @@
 #include "monocular-inertial-node.hpp"
+#include <eigen3/Eigen/Dense>
 
 #include <opencv2/core/core.hpp>
 
@@ -121,7 +122,40 @@ void MonocularInertialNode::SyncWithImu()
             }
 
             try {
-                m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
+
+                cv::Mat img;
+                cv::remap(cv_ptr->image,img,M1l,M2l,cv::INTER_LINEAR);
+                Sophus::SE3f Tcw = m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
+                // Sophus::SE3f Tcw = m_SLAM->TrackStereo(imLeft, imRight, Utility::StampToSec(msgLeft->header.stamp));
+                if(!Tcw.translation().isZero()) {
+                    // Angles for rotation matrix (from optical frame to FLU)
+                    Eigen::Matrix3f R;
+                    R  <<
+                        0,  0,  1,
+                        -1,  0,  0,
+                        0, -1,  0;
+                    Eigen::Quaternionf q_opt_flu(R);
+                    Eigen::Vector3f t_flu = R * Tcw.translation();
+                    nav_msgs::msg::Odometry odom_msg;
+
+                    odom_msg.header.stamp = this->now();
+                    odom_msg.header.frame_id = "map";
+                    odom_msg.child_frame_id = "base_link";
+
+                    // Position vector converted to FLU from optical frame
+                    odom_msg.pose.pose.position.x = t_flu.x();
+                    odom_msg.pose.pose.position.y = t_flu.y();
+                    odom_msg.pose.pose.position.z = t_flu.z();
+
+                    Eigen::Quaternionf q_cam(Tcw.unit_quaternion());
+                    Eigen::Quaternionf q_world_flu = q_cam * q_opt_flu;
+                    odom_msg.pose.pose.orientation.x = q_world_flu.x();
+                    odom_msg.pose.pose.orientation.y = q_world_flu.y();
+                    odom_msg.pose.pose.orientation.z = q_world_flu.z();
+                    odom_msg.pose.pose.orientation.w = q_world_flu.w();
+
+                    _odom_pub->publish(odom_msg);
+                }
                 // RCLCPP_INFO(this->get_logger(), "Image at %.6f processed with IMU data: \n%s", tImageshort, imu_data_stream.str().c_str());
             } catch (const std::exception& e) {
                 RCLCPP_ERROR(this->get_logger(), "SLAM processing exception: %s", e.what());

@@ -4,6 +4,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/image.hpp"
 #include "sensor_msgs/msg/imu.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 
 #include <cv_bridge/cv_bridge.h>
 
@@ -34,6 +35,9 @@ private:
 
     rclcpp::Subscription<ImuMsg>::SharedPtr   subImu_;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_subscriber;
+    cv::Mat M1l,M2l;
+
+    cv_bridge::CvImageConstPtr cv_ptr;
 
     queue<ImuMsg::SharedPtr> imuBuf_;
     queue<ImageMsg::SharedPtr> imgBuf_;
