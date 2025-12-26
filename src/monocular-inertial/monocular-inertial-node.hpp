@@ -39,6 +39,7 @@ private:
 
     cv_bridge::CvImageConstPtr cv_ptr;
 
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr _odom_pub;
     queue<ImuMsg::SharedPtr> imuBuf_;
     queue<ImageMsg::SharedPtr> imgBuf_;
     std::mutex bufMutex_, bufMutexImg_;

@@ -16,7 +16,7 @@ MonocularInertialNode::MonocularInertialNode(ORB_SLAM3::System* pSLAM)
         "imu", 1000, std::bind(&MonocularInertialNode::GrabImu, this, _1));
 
     syncThread_ = new std::thread(&MonocularInertialNode::SyncWithImu, this);
-
+    _odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("/visual_slam/tracking/odometry", 10);
     std::cout << "System Initialization Complete" << std::endl;
 }
 
