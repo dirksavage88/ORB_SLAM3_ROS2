@@ -18,17 +18,17 @@ Camera.p1: 0.004331
 Camera.p2: -0.012458
 
 # Camera resolution
-Camera.width: 1280
-Camera.height: 720
+Camera.width: 800
+Camera.height: 600
 
 # Camera frames per second 
-Camera.fps: 30.0
+Camera.fps: 10.0
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
 Camera.RGB: 1
 
 # Image scale, it changes the image size to be processed (<1.0: reduce, >1.0: increase)
-Camera.imageScale: 1.0 # 0.5 #0.7071 # 1/sqrt(2)
+Camera.imageScale: 0.7071 # 0.5 #0.7071 # 1/sqrt(2)
 
 # Close/Far threshold. Baseline times.
 ThDepth: 40.0
@@ -51,8 +51,8 @@ ORBextractor.nLevels: 8
 # Image is divided in a grid. At each cell FAST are extracted imposing a minimum response.
 # Firstly we impose iniThFAST. If no corners are detected we impose a lower value minThFAST
 # You can lower these values if your images have low contrast			
-ORBextractor.iniThFAST: 20
-ORBextractor.minThFAST: 7
+ORBextractor.iniThFAST: 18
+ORBextractor.minThFAST: 5 
 
 #--------------------------------------------------------------------------------------------
 # Viewer Parameters
