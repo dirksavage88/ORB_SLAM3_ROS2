@@ -12,17 +12,14 @@ Camera.cx: 627.842579
 Camera.cy: 419.244990
 
 # distortion parameters
-Camera.p1: 0.004331
-Camera.p2: -0.012458
 Camera.k1: -0.011358
 Camera.k2: -0.022309
-Camera.k3: 0.0
-Camera.k4: 0.0
-
+Camera.p1: 0.004331
+Camera.p2: -0.012458
 
 # Camera resolution
 Camera.width: 1280
-Camera.height: 800
+Camera.height: 720
 
 # Camera frames per second 
 Camera.fps: 30.0
