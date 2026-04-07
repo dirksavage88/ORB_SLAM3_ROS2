@@ -9,6 +9,7 @@ MonocularInertialNode::MonocularInertialNode(ORB_SLAM3::System* pSLAM)
 :   Node("ORB_SLAM3_ROS2")
 {
     this->declare_parameter("image", "/image");
+    this->declare_parameter("imu", "/imu");
     
     m_SLAM = pSLAM;
 
