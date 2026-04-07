@@ -7,6 +7,8 @@
 #include "nav_msgs/msg/odometry.hpp"
 
 #include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.hpp>
+#include <sensor_msgs/image_encodings.hpp>
 
 #include "System.h"
 #include "Frame.h"
@@ -26,18 +28,25 @@ public:
 
 private:
     void GrabImu(const ImuMsg::SharedPtr msg);
-    void GrabImage(const sensor_msgs::msg::Image::SharedPtr msg);
+    void GrabImage(sensor_msgs::msg::Image::ConstSharedPtr msg);
     cv::Mat GetImage(const ImageMsg::SharedPtr msg);
     void SyncWithImu();
+    
+    std::string image_topic;
+    std::string imu_topic;
+    bool do_rectify;
 
     ORB_SLAM3::System* m_SLAM;
     std::thread *syncThread_;
 
     rclcpp::Subscription<ImuMsg>::SharedPtr   subImu_;
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_subscriber;
+    
+    // rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr m_image_subscriber;
+    image_transport::CameraSubscriber m_image_subscriber;
+
     cv::Mat M1l,M2l;
 
-    cv_bridge::CvImageConstPtr cv_ptr;
+    cv_bridge::CvImageConstPtr m_cvImPtr;
 
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr _odom_pub;
     queue<ImuMsg::SharedPtr> imuBuf_;

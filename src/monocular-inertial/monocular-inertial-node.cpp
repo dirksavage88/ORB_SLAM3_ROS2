@@ -8,15 +8,59 @@ using std::placeholders::_1;
 MonocularInertialNode::MonocularInertialNode(ORB_SLAM3::System* pSLAM)
 :   Node("ORB_SLAM3_ROS2")
 {
+    this->declare_parameter("image", "/image");
+    
     m_SLAM = pSLAM;
-    m_image_subscriber = this->create_subscription<ImageMsg>(
-        "camera", 10, std::bind(&MonocularInertialNode::GrabImage, this, _1));
+
+    // QoS 
+    rmw_qos_profile_t qos_custom_profile = rmw_qos_profile_system_default;
+    image_topic = this->get_parameter("image").as_string();
+    imu_topic = this->get_parameter("imu").as_string();
+
+    // if (do_rectify)
+    // {
+        // // Load settings related to stereo calibration
+        // cv::FileStorage fsSettings(strSettingsFile, cv::FileStorage::READ);
+        // if (!fsSettings.isOpened())
+        // {
+        //     cerr << "ERROR: Wrong path to settings" << endl;
+        //     assert(0);
+        // }
+        //
+        // cv::Mat K_l, K_r, P_l, P_r, R_l, R_r, D_l, D_r;
+        // fsSettings["LEFT.K"] >> K_l;
+        //
+        // fsSettings["LEFT.P"] >> P_l;
+        //
+        // fsSettings["LEFT.R"] >> R_l;
+        //
+        // fsSettings["LEFT.D"] >> D_l;
+        //
+        // int rows = fsSettings["LEFT.height"];
+        // int cols = fsSettings["LEFT.width"];
+        //
+        // if (K_l.empty() || K_r.empty() || P_l.empty() || P_r.empty() || R_l.empty() || R_r.empty() || D_l.empty() || D_r.empty() ||
+        //     rows_l == 0 || rows_r == 0 || cols_l == 0 || cols_r == 0)
+        // {
+        //     cerr << "ERROR: Calibration parameters to rectify stereo are missing!" << endl;
+        //     assert(0);
+        // }
+        // cv::initUndistortRectifyMap(K_l, D_l, R_l, P_l.rowRange(0, 3).colRange(0, 3), cv::Size(cols_l, rows_l), CV_32F, M1l_, M2l_);
+    // }
+    
+    m_image_subscriber = image_transport::create_camera_subscription(
+	this,
+        image_topic.c_str(),
+        std::bind(&MonocularInertialNode::GrabImage, this, std::placeholders::_1), "raw", qos_custom_profile);
+    std::cout << "slam changed" << std::endl;
 
     subImu_ = this->create_subscription<ImuMsg>(
-        "imu", 1000, std::bind(&MonocularInertialNode::GrabImu, this, _1));
+        imu_topic.c_str(), 1000, std::bind(&MonocularInertialNode::GrabImu, this, _1));
 
     syncThread_ = new std::thread(&MonocularInertialNode::SyncWithImu, this);
+    
     _odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("/visual_slam/tracking/odometry", 10);
+    
     std::cout << "System Initialization Complete" << std::endl;
 }
 
@@ -47,7 +91,7 @@ void MonocularInertialNode::GrabImu(const ImuMsg::SharedPtr msg)
     }
 }
 
-void MonocularInertialNode::GrabImage(const ImageMsg::SharedPtr msg)
+void MonocularInertialNode::GrabImage(sensor_msgs::ImageMsg::ConstSharedPtr msg)
 {
     bufMutexImg_.lock();
 
@@ -56,6 +100,7 @@ void MonocularInertialNode::GrabImage(const ImageMsg::SharedPtr msg)
     imgBuf_.push(msg);
 
     bufMutexImg_.unlock();
+    
 }
 
 cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
@@ -124,7 +169,11 @@ void MonocularInertialNode::SyncWithImu()
             try {
 
                 cv::Mat img;
-                cv::remap(cv_ptr->image,img,M1l,M2l,cv::INTER_LINEAR);
+                if (do_rectify) {
+                    cv::remap(cv_ptr->image,img,M1l,M2l,cv::INTER_LINEAR);
+
+                }
+
                 Sophus::SE3f Tcw = m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
                 // Sophus::SE3f Tcw = m_SLAM->TrackStereo(imLeft, imRight, Utility::StampToSec(msgLeft->header.stamp));
                 if(!Tcw.translation().isZero()) {
