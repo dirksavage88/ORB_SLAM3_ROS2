@@ -4,6 +4,8 @@
 #include <opencv2/core/core.hpp>
 
 using std::placeholders::_1;
+using ImuMsg = sensor_msgs::msg::Imu;
+using ImageMsg = sensor_msgs::msg::Image;
 
 MonocularInertialNode::MonocularInertialNode(ORB_SLAM3::System* pSLAM)
 :   Node("ORB_SLAM3_ROS2")
@@ -49,10 +51,7 @@ MonocularInertialNode::MonocularInertialNode(ORB_SLAM3::System* pSLAM)
         // cv::initUndistortRectifyMap(K_l, D_l, R_l, P_l.rowRange(0, 3).colRange(0, 3), cv::Size(cols_l, rows_l), CV_32F, M1l_, M2l_);
     // }
     
-    m_image_subscriber = image_transport::create_camera_subscription(
-	this,
-        image_topic.c_str(),
-        std::bind(&MonocularInertialNode::GrabImage, this, std::placeholders::_1), "raw", qos_custom_profile);
+    m_image_subscriber = this->create_subscription<ImageMsg>(image_topic.c_str(), 10, std::bind(&MonocularInertialNode::GrabImage, this, _1));
     std::cout << "slam changed" << std::endl;
 
     subImu_ = this->create_subscription<ImuMsg>(
@@ -92,12 +91,13 @@ void MonocularInertialNode::GrabImu(const ImuMsg::SharedPtr msg)
     }
 }
 
-void MonocularInertialNode::GrabImage(sensor_msgs::ImageMsg::ConstSharedPtr msg)
+void MonocularInertialNode::GrabImage(sensor_msgs::msg::Image::SharedPtr msg)
 {
     bufMutexImg_.lock();
 
-    if (!imgBuf_.empty())
-        imgBuf_.pop();
+    if(!imgBuf_.empty())
+    	imgBuf_.pop();
+
     imgBuf_.push(msg);
 
     bufMutexImg_.unlock();
@@ -138,45 +138,65 @@ void MonocularInertialNode::SyncWithImu()
         std::lock(img_lock, imu_lock);
 
         if (!imgBuf_.empty() && !imuBuf_.empty()) {
-            auto imgPtr = imgBuf_.front();
+	    constexpr double EPS = 1e-6;	
+       	    auto imgPtr = imgBuf_.front();
             double tImage = Utility::StampToSec(imgPtr->header.stamp);
-            // double tImageshort = fmod(tImage, 100);
-
             cv::Mat imageFrame = GetImage(imgPtr); // Process image before popping
-            vector<ORB_SLAM3::IMU::Point> vImuMeas;
+            
             std::stringstream imu_data_stream;
 
-            while (!imuBuf_.empty() && Utility::StampToSec(imuBuf_.front()->header.stamp) <= tImage) {
-                auto imuPtr = imuBuf_.front();
-                double tIMU = Utility::StampToSec(imuPtr->header.stamp);
-                // double tIMUshort = fmod(tIMU, 100);
+	    if(tPrevFrame < 0.0)
+	    	tPrevFrame = tImage;
+	std::queue<ImuMsg::SharedPtr> tempQueue = imuBuf_;
+	std::vector<ORB_SLAM3::IMU::Point> vImuMeas;
 
-                imuBuf_.pop();
-                cv::Point3f acc(imuPtr->linear_acceleration.x, imuPtr->linear_acceleration.y, imuPtr->linear_acceleration.z);
-                cv::Point3f gyr(imuPtr->angular_velocity.x, imuPtr->angular_velocity.y, imuPtr->angular_velocity.z);
-                vImuMeas.push_back(ORB_SLAM3::IMU::Point(acc, gyr, tIMU));
+	while (!tempQueue.empty())
+	{
+	    auto imuPtr = tempQueue.front();
+	    double tIMU = Utility::StampToSec(imuPtr->header.stamp);
 
-                // Debug info
-                // imu_data_stream << "IMU at " << std::fixed << std::setprecision(6) << tIMUshort << " - Acc: [" << acc << "], Gyr: [" << gyr << "]\n";
-            }
+	    if (tIMU > tImage)
+		break;
 
-            imgBuf_.pop(); // Safely pop the image from the buffer here
+	    if (tIMU > tPrevFrame)
+	    {
+		cv::Point3f acc(
+		    imuPtr->linear_acceleration.x,
+		    imuPtr->linear_acceleration.y,
+		    imuPtr->linear_acceleration.z);
+
+		cv::Point3f gyr(
+		    imuPtr->angular_velocity.x,
+		    imuPtr->angular_velocity.y,
+		    imuPtr->angular_velocity.z);
+
+		vImuMeas.emplace_back(acc, gyr, tIMU);
+	    }
+
+	    tempQueue.pop();
+	}
+
+	    while(!imuBuf_.empty() && Utility::StampToSec(imuBuf_.front()->header.stamp) <=tImage) {
+            	imuBuf_.pop(); // Safely pop the image from the buffer here
+	    
+	    }
+
 
             if (vImuMeas.empty()) {
-                RCLCPP_WARN(this->get_logger(), "No valid IMU data available for the current frame at time %.6f.", tImage);
-                continue; // Skip processing this frame
+                RCLCPP_WARN(this->get_logger(), "No valid IMU data in window ( %.6f -> %.6f.",tPrevFrame, tImage);
+
             }
 
+	    tPrevFrame = tImage;
             try {
 
                 cv::Mat img;
-                if (do_rectify) {
+                /*if (do_rectify) {
                     cv::remap(cv_ptr->image,img,M1l,M2l,cv::INTER_LINEAR);
 
-                }
+                }*/
 
                 Sophus::SE3f Tcw = m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
-                // Sophus::SE3f Tcw = m_SLAM->TrackStereo(imLeft, imRight, Utility::StampToSec(msgLeft->header.stamp));
                 if(!Tcw.translation().isZero()) {
                     // Angles for rotation matrix (from optical frame to FLU)
                     Eigen::Matrix3f R;
