@@ -145,34 +145,47 @@ void MonocularInertialNode::SyncWithImu()
             if (!imgBuf_.empty() && !imuBuf_.empty()) {
                 auto imgPtr = imgBuf_.front();
                 tImage = Utility::StampToSec(imgPtr->header.stamp);
-                imageFrame = GetImage(imgPtr);
                 imgBuf_.pop();
 
-                if (tPrevFrame < 0.0)
-                    tPrevFrame = tImage;
+                if (tPrevFrame >= 0.0 && tImage <= tPrevFrame) {
+                    // Camera timestamp did not advance — frozen or duplicate frame.
+                    // All incoming IMU samples have tIMU > tImage and will never
+                    // be drained, so cap the buffer to prevent unbounded growth.
+                    constexpr size_t kMaxImuBuf = 400; // ~2 s at 200 Hz
+                    while (imuBuf_.size() > kMaxImuBuf)
+                        imuBuf_.pop();
+                    RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 1000,
+                        "Camera timestamp did not advance (%.6f <= %.6f), dropping frame.",
+                        tImage, tPrevFrame);
+                } else {
+                    imageFrame = GetImage(imgPtr);
 
-                tPrevFrameSnapshot = tPrevFrame;
+                    if (tPrevFrame < 0.0)
+                        tPrevFrame = tImage;
 
-                while (!imuBuf_.empty()) {
-                    double tIMU = Utility::StampToSec(imuBuf_.front()->header.stamp);
-                    if (tIMU > tImage)
-                        break;
-                    if (tIMU > tPrevFrame) {
-                        auto& m = imuBuf_.front();
-                        vImuMeas.emplace_back(
-                            cv::Point3f(m->linear_acceleration.x,
-                                        m->linear_acceleration.y,
-                                        m->linear_acceleration.z),
-                            cv::Point3f(m->angular_velocity.x,
-                                        m->angular_velocity.y,
-                                        m->angular_velocity.z),
-                            tIMU);
+                    tPrevFrameSnapshot = tPrevFrame;
+
+                    while (!imuBuf_.empty()) {
+                        double tIMU = Utility::StampToSec(imuBuf_.front()->header.stamp);
+                        if (tIMU > tImage)
+                            break;
+                        if (tIMU > tPrevFrame) {
+                            auto& m = imuBuf_.front();
+                            vImuMeas.emplace_back(
+                                cv::Point3f(m->linear_acceleration.x,
+                                            m->linear_acceleration.y,
+                                            m->linear_acceleration.z),
+                                cv::Point3f(m->angular_velocity.x,
+                                            m->angular_velocity.y,
+                                            m->angular_velocity.z),
+                                tIMU);
+                        }
+                        imuBuf_.pop();
                     }
-                    imuBuf_.pop();
-                }
 
-                tPrevFrame = tImage;
-                hasData = true;
+                    tPrevFrame = tImage;
+                    hasData = true;
+                }
             }
         } // locks released — GrabImu/GrabImage can run during TrackMonocular
 
