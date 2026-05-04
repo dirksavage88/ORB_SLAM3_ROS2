@@ -132,110 +132,90 @@ cv::Mat MonocularInertialNode::GetImage(const ImageMsg::SharedPtr msg)
 void MonocularInertialNode::SyncWithImu()
 {
     while (rclcpp::ok()) {
-        std::unique_lock<std::mutex> img_lock(bufMutexImg_, std::defer_lock);
-        std::unique_lock<std::mutex> imu_lock(bufMutex_, std::defer_lock);
+        cv::Mat imageFrame;
+        double tImage = 0.0;
+        double tPrevFrameSnapshot = 0.0;
+        std::vector<ORB_SLAM3::IMU::Point> vImuMeas;
+        bool hasData = false;
 
-        std::lock(img_lock, imu_lock);
+        {
+            std::unique_lock<std::mutex> img_lock(bufMutexImg_);
+            std::unique_lock<std::mutex> imu_lock(bufMutex_);
 
-        if (!imgBuf_.empty() && !imuBuf_.empty()) {
-	    constexpr double EPS = 1e-6;	
-       	    auto imgPtr = imgBuf_.front();
-            double tImage = Utility::StampToSec(imgPtr->header.stamp);
-            cv::Mat imageFrame = GetImage(imgPtr); // Process image before popping
-            
-            std::stringstream imu_data_stream;
+            if (!imgBuf_.empty() && !imuBuf_.empty()) {
+                auto imgPtr = imgBuf_.front();
+                tImage = Utility::StampToSec(imgPtr->header.stamp);
+                imageFrame = GetImage(imgPtr);
+                imgBuf_.pop();
 
-	    if(tPrevFrame < 0.0)
-	    	tPrevFrame = tImage;
-	std::queue<ImuMsg::SharedPtr> tempQueue = imuBuf_;
-	std::vector<ORB_SLAM3::IMU::Point> vImuMeas;
+                if (tPrevFrame < 0.0)
+                    tPrevFrame = tImage;
 
-	while (!tempQueue.empty())
-	{
-	    auto imuPtr = tempQueue.front();
-	    double tIMU = Utility::StampToSec(imuPtr->header.stamp);
+                tPrevFrameSnapshot = tPrevFrame;
 
-	    if (tIMU > tImage)
-		break;
-
-	    if (tIMU > tPrevFrame)
-	    {
-		cv::Point3f acc(
-		    imuPtr->linear_acceleration.x,
-		    imuPtr->linear_acceleration.y,
-		    imuPtr->linear_acceleration.z);
-
-		cv::Point3f gyr(
-		    imuPtr->angular_velocity.x,
-		    imuPtr->angular_velocity.y,
-		    imuPtr->angular_velocity.z);
-
-		vImuMeas.emplace_back(acc, gyr, tIMU);
-	    }
-
-	    tempQueue.pop();
-	}
-
-	    while(!imuBuf_.empty() && Utility::StampToSec(imuBuf_.front()->header.stamp) <=tImage) {
-            	imuBuf_.pop(); // Safely pop the image from the buffer here
-	    
-	    }
-
-
-            if (vImuMeas.empty()) {
-                RCLCPP_WARN(this->get_logger(), "No valid IMU data in window ( %.6f -> %.6f.",tPrevFrame, tImage);
-
-            }
-
-	    tPrevFrame = tImage;
-            try {
-
-                cv::Mat img;
-                /*if (do_rectify) {
-                    cv::remap(cv_ptr->image,img,M1l,M2l,cv::INTER_LINEAR);
-
-                }*/
-
-                Sophus::SE3f Tcw = m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
-                if(!Tcw.translation().isZero()) {
-                    // Angles for rotation matrix (from optical frame to FLU)
-                    Eigen::Matrix3f R;
-                    R  <<
-                        0,  0,  1,
-                        -1,  0,  0,
-                        0, -1,  0;
-                    Eigen::Quaternionf q_opt_flu(R);
-                    Eigen::Vector3f t_flu = R * Tcw.translation();
-                    nav_msgs::msg::Odometry odom_msg;
-
-                    odom_msg.header.stamp = this->now();
-                    odom_msg.header.frame_id = "map";
-                    odom_msg.child_frame_id = "base_link";
-
-                    // Position vector converted to FLU from optical frame
-                    odom_msg.pose.pose.position.x = t_flu.x();
-                    odom_msg.pose.pose.position.y = t_flu.y();
-                    odom_msg.pose.pose.position.z = t_flu.z();
-
-                    Eigen::Quaternionf q_cam(Tcw.unit_quaternion());
-                    Eigen::Quaternionf q_world_flu = q_cam * q_opt_flu;
-                    odom_msg.pose.pose.orientation.x = q_world_flu.x();
-                    odom_msg.pose.pose.orientation.y = q_world_flu.y();
-                    odom_msg.pose.pose.orientation.z = q_world_flu.z();
-                    odom_msg.pose.pose.orientation.w = q_world_flu.w();
-
-                    _odom_pub->publish(odom_msg);
+                while (!imuBuf_.empty()) {
+                    double tIMU = Utility::StampToSec(imuBuf_.front()->header.stamp);
+                    if (tIMU > tImage)
+                        break;
+                    if (tIMU > tPrevFrame) {
+                        auto& m = imuBuf_.front();
+                        vImuMeas.emplace_back(
+                            cv::Point3f(m->linear_acceleration.x,
+                                        m->linear_acceleration.y,
+                                        m->linear_acceleration.z),
+                            cv::Point3f(m->angular_velocity.x,
+                                        m->angular_velocity.y,
+                                        m->angular_velocity.z),
+                            tIMU);
+                    }
+                    imuBuf_.pop();
                 }
-                // RCLCPP_INFO(this->get_logger(), "Image at %.6f processed with IMU data: \n%s", tImageshort, imu_data_stream.str().c_str());
-            } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "SLAM processing exception: %s", e.what());
+
+                tPrevFrame = tImage;
+                hasData = true;
             }
+        } // locks released — GrabImu/GrabImage can run during TrackMonocular
+
+        if (!hasData) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            continue;
         }
 
-        img_lock.unlock();
-        imu_lock.unlock();
+        if (vImuMeas.empty()) {
+            RCLCPP_WARN(this->get_logger(),
+                "No valid IMU data in window (%.6f -> %.6f).", tPrevFrameSnapshot, tImage);
+        }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        try {
+            Sophus::SE3f Tcw = m_SLAM->TrackMonocular(imageFrame, tImage, vImuMeas);
+            if (!Tcw.translation().isZero()) {
+                Eigen::Matrix3f R;
+                R <<  0,  0,  1,
+                     -1,  0,  0,
+                      0, -1,  0;
+                Eigen::Quaternionf q_opt_flu(R);
+                Eigen::Vector3f t_flu = R * Tcw.translation();
+
+                nav_msgs::msg::Odometry odom_msg;
+                odom_msg.header.stamp = this->now();
+                odom_msg.header.frame_id = "map";
+                odom_msg.child_frame_id = "base_link";
+                odom_msg.pose.pose.position.x = t_flu.x();
+                odom_msg.pose.pose.position.y = t_flu.y();
+                odom_msg.pose.pose.position.z = t_flu.z();
+
+                Eigen::Quaternionf q_cam(Tcw.unit_quaternion());
+                Eigen::Quaternionf q_world_flu = q_cam * q_opt_flu;
+                odom_msg.pose.pose.orientation.x = q_world_flu.x();
+                odom_msg.pose.pose.orientation.y = q_world_flu.y();
+                odom_msg.pose.pose.orientation.z = q_world_flu.z();
+                odom_msg.pose.pose.orientation.w = q_world_flu.w();
+
+                _odom_pub->publish(odom_msg);
+            }
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "SLAM processing exception: %s", e.what());
+        }
     }
 }
 
