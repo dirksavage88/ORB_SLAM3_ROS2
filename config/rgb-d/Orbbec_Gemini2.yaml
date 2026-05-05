@@ -1,0 +1,65 @@
+%YAML:1.0
+
+#--------------------------------------------------------------------------------------------
+# Camera Parameters — Orbbec Gemini 2 (640x360 RGB-D mode)
+# Intrinsics from: https://wiki.seeedstudio.com/orb_slam3_orbbec_gemini2
+# Run camera calibration to refine these for your specific unit.
+#--------------------------------------------------------------------------------------------
+Camera.type: "PinHole"
+
+Camera.fx: 375.47
+Camera.fy: 372.37
+Camera.cx: 300.47
+Camera.cy: 170.27
+
+# Distortion parameters
+Camera.k1: 0.003083
+Camera.k2: 0.015102
+Camera.p1: 0.0
+Camera.p2: 0.0
+
+# Camera resolution
+Camera.width: 640
+Camera.height: 360
+
+# Camera frames per second
+Camera.fps: 30.0
+
+# Color order (0: BGR, 1: RGB)
+Camera.RGB: 1
+
+# Image scale factor (<1.0: reduce, >1.0: increase)
+Camera.imageScale: 1.0
+
+# stereo baseline times fx — approximate for Gemini 2 (~55mm RGB-depth baseline)
+# Refine by measuring Camera.bf = baseline_meters * Camera.fx
+Camera.bf: 20.65
+
+# Close/Far threshold in baseline multiples
+ThDepth: 40.0
+
+# Depth map scale factor (Gemini 2 depth in millimetres → metres)
+DepthMapFactor: 1000.0
+
+#--------------------------------------------------------------------------------------------
+# ORB Parameters
+#--------------------------------------------------------------------------------------------
+ORBextractor.nFeatures: 1250
+ORBextractor.scaleFactor: 1.2
+ORBextractor.nLevels: 8
+ORBextractor.iniThFAST: 20
+ORBextractor.minThFAST: 7
+
+#--------------------------------------------------------------------------------------------
+# Viewer Parameters
+#--------------------------------------------------------------------------------------------
+Viewer.KeyFrameSize: 0.05
+Viewer.KeyFrameLineWidth: 1
+Viewer.GraphLineWidth: 0.9
+Viewer.PointSize: 2
+Viewer.CameraSize: 0.08
+Viewer.CameraLineWidth: 3
+Viewer.ViewpointX: 0
+Viewer.ViewpointY: -0.7
+Viewer.ViewpointZ: -3.5
+Viewer.ViewpointF: 500

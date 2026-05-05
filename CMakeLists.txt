@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(orbslam3)
 
-# You should set the PYTHONPATH to your own python site-packages path
-set(ENV{PYTHONPATH} "/opt/ros/humble/lib/python3.10/site-packages/")
+# Use PYTHONPATH from environment (set by sourcing /opt/ros/$ROS_DISTRO/setup.bash)
+set(ENV{PYTHONPATH} "$ENV{PYTHONPATH}")
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules)
 
@@ -22,7 +22,6 @@ find_package(nav_msgs REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(image_transport REQUIRED)
 find_package(message_filters REQUIRED)
-find_package(Sophus REQUIRED)
 find_package(Pangolin REQUIRED)
 find_package(ORB_SLAM3 REQUIRED)
 find_package(OpenCV 4.0 QUIET)
@@ -30,6 +29,7 @@ include_directories(
   include
   ${ORB_SLAM3_ROOT_DIR}/include
   ${ORB_SLAM3_ROOT_DIR}/include/CameraModels
+  ${ORB_SLAM3_ROOT_DIR}/Thirdparty/Sophus
 )
 
 link_directories(
@@ -70,9 +70,8 @@ ament_target_dependencies(stereo-inertial rclcpp sensor_msgs nav_msgs cv_bridge 
 install(TARGETS mono mono-inertial rgbd stereo stereo-inertial
   DESTINATION lib/${PROJECT_NAME})
 
-# Install launch files.
-#install(DIRECTORY launch config vocabulary
-#  DESTINATION share/${PROJECT_NAME}/)
+install(DIRECTORY launch config vocabulary
+  DESTINATION share/${PROJECT_NAME}/)
 
 ament_package()
 
