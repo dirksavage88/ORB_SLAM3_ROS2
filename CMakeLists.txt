@@ -25,11 +25,33 @@ find_package(message_filters REQUIRED)
 find_package(Pangolin REQUIRED)
 find_package(ORB_SLAM3 REQUIRED)
 find_package(OpenCV 4.0 QUIET)
+
+# ── Orbbec SDK detection ──────────────────────────────────────────────────
+# Mirrors the same search logic used in the core ORB_SLAM3 CMakeLists.
+set(ORBBEC_SDK_PATH "/home/seeed/demo/OrbbecSDK_v2.4.11_202508040936_058db73_linux_aarch64"
+    CACHE PATH "Root of the extracted Orbbec SDK archive")
+
+if(EXISTS ${ORBBEC_SDK_PATH})
+  set(ORBBEC_FOUND TRUE)
+  set(ORBBEC_INCLUDE_DIRS ${ORBBEC_SDK_PATH}/include)
+  set(ORBBEC_LIBRARIES    ${ORBBEC_SDK_PATH}/lib/libOrbbecSDK.so)
+  message(STATUS "Orbbec SDK found at: ${ORBBEC_SDK_PATH}")
+else()
+  find_package(PkgConfig QUIET)
+  if(PkgConfig_FOUND)
+    pkg_check_modules(ORBBEC ob_api)
+  endif()
+  if(NOT ORBBEC_FOUND)
+    message(WARNING "Orbbec SDK not found — rgbd node will not compile against the SDK")
+  endif()
+endif()
+
 include_directories(
   include
   ${ORB_SLAM3_ROOT_DIR}/include
   ${ORB_SLAM3_ROOT_DIR}/include/CameraModels
   ${ORB_SLAM3_ROOT_DIR}/Thirdparty/Sophus
+  ${ORBBEC_INCLUDE_DIRS}
 )
 
 link_directories(
@@ -52,7 +74,10 @@ add_executable(rgbd
   src/rgbd/rgbd.cpp
   src/rgbd/rgbd-slam-node.cpp
 )
-ament_target_dependencies(rgbd rclcpp sensor_msgs nav_msgs cv_bridge message_filters ORB_SLAM3 Pangolin OpenCV image_transport)
+ament_target_dependencies(rgbd rclcpp sensor_msgs nav_msgs ORB_SLAM3 Pangolin OpenCV)
+if(ORBBEC_FOUND)
+  target_link_libraries(rgbd ${ORBBEC_LIBRARIES})
+endif()
 
 add_executable(stereo
   src/stereo/stereo.cpp

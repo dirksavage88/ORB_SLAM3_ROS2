@@ -1,49 +1,48 @@
 #ifndef __RGBD_SLAM_NODE_HPP__
 #define __RGBD_SLAM_NODE_HPP__
 
-#include <iostream>
-#include <algorithm>
-#include <fstream>
+#include <mutex>
 #include <chrono>
 
 #include "rclcpp/rclcpp.hpp"
-#include "sensor_msgs/msg/image.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 
-#include "message_filters/subscriber.h"
-#include "message_filters/synchronizer.h"
-#include "message_filters/sync_policies/approximate_time.h"
+#include <opencv2/core/core.hpp>
 
-#include <cv_bridge/cv_bridge.hpp>
+#include <libobsensor/ObSensor.hpp>
+#include <libobsensor/h/ObTypes.h>
 
 #include "System.h"
 #include "Frame.h"
 #include "Map.h"
 #include "Tracking.h"
 
-#include "utility.hpp"
-
 class RgbdSlamNode : public rclcpp::Node
 {
 public:
-    RgbdSlamNode(ORB_SLAM3::System* pSLAM);
-
+    explicit RgbdSlamNode(ORB_SLAM3::System* pSLAM);
     ~RgbdSlamNode();
 
 private:
-    using ImageMsg = sensor_msgs::msg::Image;
-    typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::msg::Image, sensor_msgs::msg::Image> approximate_sync_policy;
+    // Called by the ROS2 timer at 30fps to process the latest buffered frame
+    void TimerCallback();
 
-    void GrabRGBD(const sensor_msgs::msg::Image::SharedPtr msgRGB, const sensor_msgs::msg::Image::SharedPtr msgD);
+    // Called by the Orbbec SDK on a background thread each time a frameset arrives
+    void FrameCallback(std::shared_ptr<ob::FrameSet> frameSet);
 
     ORB_SLAM3::System* m_SLAM;
 
-    cv_bridge::CvImageConstPtr cv_ptrRGB;
-    cv_bridge::CvImageConstPtr cv_ptrD;
+    std::shared_ptr<ob::Pipeline> m_pipeline;
 
-    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image> > rgb_sub;
-    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image> > depth_sub;
+    // Shared frame buffer written by FrameCallback, read by TimerCallback
+    std::mutex m_frame_mutex;
+    cv::Mat    m_color_frame;
+    cv::Mat    m_depth_frame;
+    double     m_frame_timestamp{-1.0};
+    bool       m_new_frame_ready{false};
 
-    std::shared_ptr<message_filters::Synchronizer<approximate_sync_policy> > syncApproximate;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr m_odom_pub;
+    rclcpp::TimerBase::SharedPtr m_timer;
 };
 
 #endif
