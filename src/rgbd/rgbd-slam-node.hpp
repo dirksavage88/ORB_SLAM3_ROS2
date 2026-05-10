@@ -35,9 +35,11 @@ private:
     std::shared_ptr<ob::Pipeline> m_pipeline;
 
     // Shared frame buffer written by FrameCallback, read by TimerCallback
-    std::mutex m_frame_mutex;
+    std::mutex imu_mutex;
     cv::Mat    m_color_frame;
     cv::Mat    m_depth_frame;
+    int count_im_buffer = 0;
+    std::condition_variable cond_image_rec;
     double     m_frame_timestamp{-1.0};
     bool       m_new_frame_ready{false};
 

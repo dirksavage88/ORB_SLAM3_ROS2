@@ -13,8 +13,12 @@ RgbdSlamNode::RgbdSlamNode(ORB_SLAM3::System* pSLAM)
     // Color as RGB; we convert to BGR in FrameCallback to match OpenCV convention
     cfg->enableVideoStream(OB_STREAM_COLOR, OB_WIDTH_ANY, OB_HEIGHT_ANY, OB_FPS_ANY, OB_FORMAT_RGB);
     // Depth as 16-bit (millimetres); DepthMapFactor=1000 in the YAML handles the scaling
-    cfg->enableVideoStream(OB_STREAM_DEPTH, OB_WIDTH_ANY, OB_HEIGHT_ANY, OB_FPS_ANY, OB_FORMAT_Y16);
-
+    cfg->enableVideoStream(OB_STREAM_DEPTH, OB_WIDTH_ANY, OB_HEIGHT_ANY, OB_FPS_ANY, OB_FORMAT_Y14);
+    // Without this the SDK emits single-stream FrameSets and the RGBD pipeline starves.                                                             
+    //cfg->setFrameAggregateOutputMode(OB_FRAME_AGGREGATE_OUTPUT_FULL_FRAME_REQUIRE);                                                                  
+                                                                                                                                                     
+    // Align color and depth timestamps so ORB-SLAM3 sees a coherent pair.                                                                           
+    //m_pipeline->enableFrameSync();                                   
     m_pipeline->start(cfg, [this](std::shared_ptr<ob::FrameSet> fs) {
         this->FrameCallback(fs);
     });
@@ -27,7 +31,7 @@ RgbdSlamNode::RgbdSlamNode(ORB_SLAM3::System* pSLAM)
     // ── 30 fps timer ─────────────────────────────────────────────────────
     // Interval matches the camera framerate so each tick consumes one frame.
     m_timer = this->create_wall_timer(
-        std::chrono::milliseconds(33),
+        std::chrono::milliseconds(1),
         std::bind(&RgbdSlamNode::TimerCallback, this));
 }
 
@@ -48,48 +52,63 @@ RgbdSlamNode::~RgbdSlamNode()
 // shared buffer so TimerCallback can consume them on the executor thread.
 void RgbdSlamNode::FrameCallback(std::shared_ptr<ob::FrameSet> frameSet)
 {
+    std::unique_lock<std::mutex> lock(imu_mutex);
     if (!frameSet) return;
-
-    cv::Mat color, depth;
+    count_im_buffer++;
+    
+    double new_timestamp_image = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count() * 1e-3;
+    
+    // Limit frame rate to 15 FPS to reduce processing load
+    if (abs(m_frame_timestamp - new_timestamp_image) < 0.067) { // 1/15 = 0.067 seconds
+        count_im_buffer--;
+        return;
+    }
 
     try {
         auto colorFrame = frameSet->getFrame(OB_FRAME_COLOR);
         if (colorFrame) {
             auto vf = colorFrame->as<ob::VideoFrame>();
-            cv::Mat raw(static_cast<int>(vf->getHeight()),
+            m_color_frame = cv::Mat(static_cast<int>(vf->getHeight()),
                         static_cast<int>(vf->getWidth()),
                         CV_8UC3,
                         static_cast<uint8_t*>(vf->getData()));
             // Orbbec delivers OB_FORMAT_RGB; convert to BGR for OpenCV / ORB-SLAM3
-            cv::cvtColor(raw, color, cv::COLOR_RGB2BGR);
+            cv::cvtColor(m_color_frame, m_color_frame, cv::COLOR_RGB2BGR);
             // Resize to the resolution expected by the YAML config (640×360)
-            cv::resize(color, color, cv::Size(640, 360));
+            cv::resize(m_color_frame, m_color_frame, cv::Size(640, 360));
+	    std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         auto depthFrame = frameSet->getFrame(OB_FRAME_DEPTH);
         if (depthFrame) {
             auto vf = depthFrame->as<ob::VideoFrame>();
-            cv::Mat raw(static_cast<int>(vf->getHeight()),
+            m_depth_frame = cv::Mat(static_cast<int>(vf->getHeight()),
                         static_cast<int>(vf->getWidth()),
                         CV_16U,
                         static_cast<uint8_t*>(vf->getData()));
-            cv::resize(raw, depth, cv::Size(640, 360));
+            cv::resize(m_depth_frame, m_depth_frame
+			    , cv::Size(640, 360));
         }
     } catch (const ob::Error& e) {
         RCLCPP_ERROR(this->get_logger(), "Orbbec frame error: %s", e.what());
         return;
     }
 
-    if (color.empty() || depth.empty()) return;
+    //if(color.empty() || depth.empty()) return;
 
-    double timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count() * 1e-3;
+    //RCLCPP_INFO(this->get_logger(), "cb: color=%d depth=%d",
+    //          (int)!color.empty(), (int)!depth.empty());
 
-    std::lock_guard<std::mutex> lock(m_frame_mutex);
-    m_color_frame     = color.clone();
-    m_depth_frame     = depth.clone();
-    m_frame_timestamp = timestamp;
+
+
+    //std::lock_guard<std::mutex> lock(m_frame_mutex);
+    //m_color_frame     = color.clone();
+    //m_depth_frame     = depth.clone();
+    m_frame_timestamp = new_timestamp_image;
     m_new_frame_ready = true;
+    lock.unlock();
+    cond_image_rec.notify_all();
 }
 
 // ── TimerCallback ─────────────────────────────────────────────────────────
@@ -101,8 +120,9 @@ void RgbdSlamNode::TimerCallback()
     double  timestamp;
 
     {
-        std::lock_guard<std::mutex> lock(m_frame_mutex);
-        if (!m_new_frame_ready) return;
+        std::unique_lock<std::mutex> lk(imu_mutex);
+        if (!m_new_frame_ready) cond_image_rec.wait(lk);
+        if (count_im_buffer > 1) count_im_buffer = 0;
         color     = m_color_frame.clone();
         depth     = m_depth_frame.clone();
         timestamp = m_frame_timestamp;

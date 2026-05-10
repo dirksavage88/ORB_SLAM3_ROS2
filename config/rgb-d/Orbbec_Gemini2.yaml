@@ -44,9 +44,9 @@ DepthMapFactor: 1000.0
 #--------------------------------------------------------------------------------------------
 # ORB Parameters
 #--------------------------------------------------------------------------------------------
-ORBextractor.nFeatures: 1250
+ORBextractor.nFeatures: 800
 ORBextractor.scaleFactor: 1.2
-ORBextractor.nLevels: 8
+ORBextractor.nLevels: 6
 ORBextractor.iniThFAST: 20
 ORBextractor.minThFAST: 7
 

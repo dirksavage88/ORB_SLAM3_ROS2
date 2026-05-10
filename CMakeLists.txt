@@ -28,8 +28,8 @@ find_package(OpenCV 4.0 QUIET)
 
 # ── Orbbec SDK detection ──────────────────────────────────────────────────
 # Mirrors the same search logic used in the core ORB_SLAM3 CMakeLists.
-set(ORBBEC_SDK_PATH "/home/seeed/demo/OrbbecSDK_v2.4.11_202508040936_058db73_linux_aarch64"
-    CACHE PATH "Root of the extracted Orbbec SDK archive")
+set(ORBBEC_SDK_PATH "/home/orb/OrbbecSDK_v2.4.11_202508040936_058db73_linux_x86_64")
+#    CACHE PATH "Root of the extracted Orbbec SDK archive")
 
 if(EXISTS ${ORBBEC_SDK_PATH})
   set(ORBBEC_FOUND TRUE)
@@ -95,8 +95,8 @@ ament_target_dependencies(stereo-inertial rclcpp sensor_msgs nav_msgs cv_bridge 
 install(TARGETS mono mono-inertial rgbd stereo stereo-inertial
   DESTINATION lib/${PROJECT_NAME})
 
-install(DIRECTORY launch config vocabulary
-  DESTINATION share/${PROJECT_NAME}/)
+#install(DIRECTORY launch config vocabulary
+#  DESTINATION share/${PROJECT_NAME}/)
 
 ament_package()
 
