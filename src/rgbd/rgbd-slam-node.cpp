@@ -146,24 +146,37 @@ void RgbdSlamNode::TimerCallback()
     //                  3=RECENTLY_LOST, 4=LOST
     // Only publish a reliable pose when fully tracking.
     if (m_SLAM->GetTrackingState() != 2) return;
+    if(!pose.translation().isZero()) {
+        // R_flu_from_opt: optical (x-right, y-down, z-forward) -> FLU (x-fwd, y-left, z-up).
+        Eigen::Matrix3f R;
+        R <<  0,  0,  1,
+             -1,  0,  0,
+              0, -1,  0;
+        Eigen::Quaternionf q_R(R);
 
-    auto odom = nav_msgs::msg::Odometry();
-    odom.header.stamp    = this->now();
-    odom.header.frame_id = "odom";
-    odom.child_frame_id  = "camera_link";
+        // TrackRGBD returns Tcw (world->camera). Camera-pose-in-world is Twc.
+        Sophus::SE3f Twc = pose.inverse();
 
-    // TrackRGBD returns T_cw (camera-in-world); invert to get world-in-camera
-    // then take the world position of the camera.
-    Eigen::Vector3f    t = pose.translation();
-    Eigen::Quaternionf q = pose.unit_quaternion();
+        // Translation: rotate the camera position from optical-world basis into FLU.
+        Eigen::Vector3f t_flu = R * Twc.translation();
 
-    odom.pose.pose.position.x    = t.x();
-    odom.pose.pose.position.y    = t.y();
-    odom.pose.pose.position.z    = t.z();
-    odom.pose.pose.orientation.x = q.x();
-    odom.pose.pose.orientation.y = q.y();
-    odom.pose.pose.orientation.z = q.z();
-    odom.pose.pose.orientation.w = q.w();
+        // Orientation: change basis on BOTH sides (world and body) -> conjugate by q_R.
+        Eigen::Quaternionf q_flu = q_R * Twc.unit_quaternion() * q_R.conjugate();
 
-    m_odom_pub->publish(odom);
+        auto odom = nav_msgs::msg::Odometry();
+        odom.header.stamp    = this->now();
+        odom.header.frame_id = "odom";
+        odom.child_frame_id  = "camera_link";
+
+        odom.pose.pose.position.x    = t_flu.x();
+        odom.pose.pose.position.y    = t_flu.y();
+        odom.pose.pose.position.z    = t_flu.z();
+        odom.pose.pose.orientation.x = q_flu.x();
+        odom.pose.pose.orientation.y = q_flu.y();
+        odom.pose.pose.orientation.z = q_flu.z();
+        odom.pose.pose.orientation.w = q_flu.w();
+
+        m_odom_pub->publish(odom);
+    }
+
 }
